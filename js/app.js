@@ -857,6 +857,13 @@ function modalInquilino(id = null) {
       if (!inq) {
         base.montos = [{ desde: periodoDe(d.fechaInicio), monto: Number(d.monto) }];
         base.fechaFin = null;
+      } else {
+        // Si se adelanta la fecha de ingreso, el primer monto rige desde el nuevo inicio.
+        const montos = [...(inq.montos || [])].sort((a, b) => a.desde.localeCompare(b.desde));
+        if (montos[0] && montos[0].desde > periodoDe(d.fechaInicio)) {
+          montos[0] = { ...montos[0], desde: periodoDe(d.fechaInicio) };
+          base.montos = montos;
+        }
       }
       const nuevoId = store.guardar('inquilinos', id, base);
       toast(inq ? 'Datos actualizados' : `${base.nombre} registrado`);
