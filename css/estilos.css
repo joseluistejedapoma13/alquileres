@@ -409,6 +409,9 @@ main {
 .fila-sub.texto-rojo { color: var(--rojo); }
 .fila-sub.texto-verde { color: var(--verde); }
 .fila-nota { font-size: 13px; color: var(--texto-2); font-style: italic; margin-top: 2px; }
+.fila-lado { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.enlace-fila { color: inherit; text-decoration: none; }
+.enlace-fila:hover .fila-titulo { text-decoration: underline; }
 .fila-acciones { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 14px 12px; }
 .fila-agregar { color: var(--primario); font-weight: 650; justify-content: center; }
 .monto { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -646,6 +649,48 @@ dialog::backdrop { background: rgba(8, 12, 18, .5); }
   outline: none;
   border-color: var(--primario);
   box-shadow: 0 0 0 3px var(--primario-suave);
+}
+.campo input[readonly] { color: var(--texto-2); }
+.meses-pago {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (min-width: 480px) { .meses-pago { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.mes-op {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-height: 52px;
+  padding: 7px 10px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie-2);
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mes-op strong { font-size: 14px; text-transform: capitalize; }
+.mes-op span { font-size: 12px; color: var(--texto-2); overflow-wrap: anywhere; }
+.mes-op.vencido span { color: var(--rojo); font-weight: 650; }
+.mes-op.parcial span { color: var(--ambar); font-weight: 650; }
+.mes-op.pagado { opacity: .5; cursor: default; }
+.mes-op.pagado span { color: var(--verde); }
+.mes-op.elegido {
+  border-color: var(--primario);
+  background: var(--primario-suave);
+  box-shadow: inset 0 0 0 1px var(--primario);
+}
+.mes-op.elegido strong::before { content: "✓ "; color: var(--primario); }
+.mes-mas {
+  justify-content: center;
+  align-items: center;
+  border-style: dashed;
+  color: var(--primario);
+  font-weight: 650;
+  font-size: 13px;
 }
 .campos-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
 @media (max-width: 380px) { .campos-2 { grid-template-columns: 1fr; } }

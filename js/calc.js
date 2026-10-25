@@ -1,9 +1,9 @@
 // Cálculo de la cuenta de cada inquilino.
 //
-// Cada mes desde que entró genera un cobro (su monto mensual). Los pagos se
-// aplican por orden de fecha al mes más antiguo que falte pagar; si sobra
-// dinero pasa al mes siguiente. Así un pago grande queda como adelanto de los
-// meses que vienen, y un pago chico queda como abono del mes pendiente.
+// Cada mes desde que entró genera un cobro (su monto mensual). Cada pago
+// indica el mes que paga (campo `periodo`) y se suma a ese mes. Pagar un mes
+// futuro es un adelanto. Los pagos sin mes (o lo que exceda el monto del mes)
+// se aplican al mes pendiente más antiguo y, si sobra, a los siguientes.
 
 const EPS = 0.005;
 
@@ -75,40 +75,77 @@ export function estadoCuenta(inq, pagosInq, hoy = hoyISO()) {
   const fin = inq.fechaFin ? periodoDe(inq.fechaFin) : null;
   // Se cobra hasta el mes actual (o hasta el mes de salida si ya se fue).
   const ultimoCobro = fin && fin < actual ? fin : actual;
+  const enRango = (p) => esPeriodo(p) && p >= inicio && (!fin || p <= fin);
 
-  const cola = ordenarPagos(pagosInq).map((p) => ({ ...p, resto: Number(p.monto) || 0 }));
-  let i = 0;
+  const pagos = ordenarPagos(pagosInq);
+  const conMes = pagos.filter((p) => enRango(p.periodo));
+  const libres = pagos.filter((p) => !enRango(p.periodo)).map((p) => ({ ...p, resto: Number(p.monto) || 0 }));
+
   const meses = [];
-
-  for (let p = inicio; meses.length < 600; p = sumarMeses(p, 1)) {
-    while (i < cola.length && cola[i].resto <= EPS) i++;
-    if (fin && p > fin) break;
-    // Después del mes actual solo se generan meses si hay dinero adelantado.
-    if (p > ultimoCobro && i >= cola.length) break;
-    const monto = montoDelMes(inq.montos, p);
-    if (p > ultimoCobro && monto <= 0) break;
-
+  const porPeriodo = new Map();
+  const nuevoMes = (p) => {
     const mes = {
-      periodo: p, monto, pagado: 0, aplicaciones: [], fechaCompleto: null,
+      periodo: p, monto: montoDelMes(inq.montos, p), pagado: 0, aplicaciones: [],
       vence: fechaVencimiento(p, inq.diaPago),
     };
-    let falta = monto;
-    while (falta > EPS && i < cola.length) {
-      const pago = cola[i];
-      const usar = Math.min(falta, pago.resto);
-      pago.resto -= usar;
-      falta -= usar;
-      mes.pagado += usar;
-      mes.aplicaciones.push({ pagoId: pago.id, fecha: pago.fecha, monto: redondear(usar) });
-      if (pago.resto <= EPS) i++;
-      if (falta <= EPS) mes.fechaCompleto = pago.fecha;
-    }
-    mes.pagado = redondear(mes.pagado);
-    mes.saldo = redondear(Math.max(0, monto - mes.pagado));
     meses.push(mes);
+    porPeriodo.set(p, mes);
+    return mes;
+  };
+  const aplicar = (mes, pago, cantidad) => {
+    mes.pagado += cantidad;
+    mes.aplicaciones.push({ pagoId: pago.id, fecha: pago.fecha, monto: redondear(cantidad) });
+  };
+
+  // Meses hasta el último cobro, o hasta el último mes pagado por adelantado.
+  let hasta = ultimoCobro;
+  for (const p of conMes) if (p.periodo > hasta) hasta = p.periodo;
+  for (let p = inicio; p <= hasta && meses.length < 600; p = sumarMeses(p, 1)) nuevoMes(p);
+
+  // 1) Cada pago va al mes que eligieron. Lo que pase del monto del mes queda libre.
+  for (const pago of conMes) {
+    const mes = porPeriodo.get(pago.periodo);
+    const cantidad = Number(pago.monto) || 0;
+    const usar = Math.min(cantidad, Math.max(0, mes.monto - mes.pagado));
+    if (usar > EPS) aplicar(mes, pago, usar);
+    if (cantidad - usar > EPS) libres.push({ ...pago, resto: cantidad - usar });
+  }
+
+  // 2) Lo libre cubre el mes pendiente más antiguo y, si sobra, los siguientes.
+  libres.sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.creadoEn || '').localeCompare(b.creadoEn || ''));
+  let i = 0;
+  for (let k = 0; meses.length < 600; k++) {
+    while (i < libres.length && libres[i].resto <= EPS) i++;
+    if (i >= libres.length) break;
+    let mes = meses[k];
+    if (!mes) {
+      const p = meses.length ? sumarMeses(meses.at(-1).periodo, 1) : inicio;
+      if ((fin && p > fin) || montoDelMes(inq.montos, p) <= 0) break;
+      mes = nuevoMes(p);
+    }
+    while (mes.monto - mes.pagado > EPS && i < libres.length) {
+      const pago = libres[i];
+      const usar = Math.min(mes.monto - mes.pagado, pago.resto);
+      pago.resto -= usar;
+      aplicar(mes, pago, usar);
+      if (pago.resto <= EPS) i++;
+    }
   }
 
   for (const m of meses) {
+    m.pagado = redondear(m.pagado);
+    m.saldo = redondear(Math.max(0, m.monto - m.pagado));
+    m.aplicaciones.sort((a, b) => a.fecha.localeCompare(b.fecha));
+    // Fecha en que el mes quedó completamente pagado.
+    m.fechaCompleto = null;
+    let acumulado = 0;
+    for (const a of m.aplicaciones) {
+      acumulado += a.monto;
+      if (m.monto > 0 && acumulado >= m.monto - EPS) {
+        m.fechaCompleto = a.fecha;
+        break;
+      }
+    }
     m.vencido = m.saldo > EPS && hoy > m.vence;
     if (m.saldo <= EPS) m.estado = 'pagado';
     else if (m.vencido) m.estado = 'vencido';
@@ -153,8 +190,8 @@ export function estadoCuenta(inq, pagosInq, hoy = hoyISO()) {
     porVencer,
     pagadoHasta,
     proximo,
-    saldoAFavor: redondear(cola.reduce((s, p) => s + Math.max(0, p.resto), 0)),
-    totalPagado: redondear(cola.reduce((s, p) => s + (Number(p.monto) || 0), 0)),
+    saldoAFavor: redondear(libres.reduce((s, p) => s + Math.max(0, p.resto), 0)),
+    totalPagado: redondear(pagos.reduce((s, p) => s + (Number(p.monto) || 0), 0)),
     activo,
     estado,
   };

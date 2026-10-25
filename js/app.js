@@ -174,6 +174,10 @@ const vacio = (texto, extra = '') => `<div class="vacio"><p>${esc(texto)}</p>${e
 const botonPago = (inquilinoId, texto = 'Registrar pago') => `
   <button class="btn btn-chico btn-primario" data-accion="pago" data-inquilino="${inquilinoId}">${esc(texto)}</button>`;
 
+// Botón para pagar un mes concreto (solo si falta pagar algo).
+const botonPagarMes = (inq, m) => (m.saldo > 0 ? `
+  <button class="btn btn-chico" data-accion="pago" data-inquilino="${inq.id}" data-periodo="${m.periodo}">Pagar</button>` : '');
+
 function filtroLugares() {
   if (datos.lugares.length < 2) return '';
   const opciones = [['', 'Todos'], ...[...datos.lugares].sort(ordenNombre).map((l) => [l.id, l.nombre])];
@@ -317,14 +321,14 @@ function vistaMes(param) {
 
 function filaMes({ inq, m }) {
   const sub = [unidadDe(inq)?.nombre, dinero(m.monto), `vence ${fechaCorta(m.vence)}`].filter(Boolean).join(' · ');
-  return `<a class="fila fila-principal" href="#/inquilino/${inq.id}">
-    <div class="fila-texto">
+  return `<div class="fila">
+    <a class="fila-texto enlace-fila" href="#/inquilino/${inq.id}">
       <div class="fila-titulo">${esc(inq.nombre)}</div>
       <div class="fila-sub">${esc(sub)}</div>
       ${lineaPago(m)}
-    </div>
-    ${chipMes(m)}
-  </a>`;
+    </a>
+    <div class="fila-lado">${chipMes(m)}${botonPagarMes(inq, m)}</div>
+  </div>`;
 }
 
 function vistaInquilinos() {
@@ -398,7 +402,7 @@ function vistaInquilino(id) {
             <div class="fila-sub">${dinero(m.monto)} · vence ${fechaCorta(m.vence)}</div>
             ${lineaPago(m)}
           </div>
-          ${chipMes(m)}
+          <div class="fila-lado">${chipMes(m)}${botonPagarMes(inq, m)}</div>
         </div>`).join('')}</div>`
       : vacio(`Su primer mes es ${nombrePeriodo(periodoDe(inq.fechaInicio))}.`)}
     </section>
@@ -427,9 +431,13 @@ function vistaInquilino(id) {
 
 function filaPago(p, conInquilino) {
   const inq = calc.inquilinos.get(p.inquilinoId);
-  const titulo = conInquilino ? (inq?.nombre || 'Inquilino eliminado') : fechaLarga(p.fecha);
+  const mes = p.periodo ? nombrePeriodo(p.periodo) : null;
+  let titulo;
+  if (conInquilino) titulo = inq?.nombre || 'Inquilino eliminado';
+  else titulo = mes || fechaLarga(p.fecha);
   const sub = [
-    conInquilino ? fechaCorta(p.fecha) : null,
+    conInquilino && mes ? `Mes: ${mes}` : null,
+    conInquilino || mes ? `pagó el ${fechaCorta(p.fecha)}` : null,
     conInquilino && inq ? ubicacion(inq) : null,
     METODOS[p.metodo] || p.metodo,
     p.creadoPor?.nombre ? `anotó ${p.creadoPor.nombre}` : null,
@@ -555,12 +563,6 @@ function abrirModal(titulo, cuerpo, { alGuardar, alEliminar, textoGuardar = 'Gua
   return form;
 }
 
-function sugerirMonto(inquilinoId) {
-  const inq = calc.inquilinos.get(inquilinoId);
-  if (!inq) return '';
-  return cuenta(inq).proximo?.saldo || montoActual(inq, calc.hoy) || '';
-}
-
 function opcionesInquilinos(seleccionado) {
   const lista = datos.inquilinos.filter((i) => i.id === seleccionado || cuenta(i).activo || cuenta(i).deuda > 0);
   return `<option value="" disabled ${seleccionado ? '' : 'selected'}>Elige un inquilino…</option>
@@ -572,7 +574,59 @@ function opcionesInquilinos(seleccionado) {
       }).join('')}</optgroup>`).join('')}`;
 }
 
-function modalPago({ inquilinoId = '', pagoId = null } = {}) {
+// Cuenta del inquilino sin contar el pago que se está editando.
+function cuentaSinPago(inq, pagoId) {
+  if (!pagoId) return cuenta(inq);
+  return estadoCuenta(inq, (calc.pagosPor.get(inq.id) || []).filter((p) => p.id !== pagoId), calc.hoy);
+}
+
+// Meses que se pueden pagar: desde el pendiente más antiguo hasta un año adelante.
+function mesesParaPagar(inq, c, incluir = '') {
+  const primero = [c.meses.find((m) => m.saldo > 0)?.periodo || c.proximo?.periodo, incluir]
+    .filter(Boolean).sort()[0];
+  if (!primero) return [];
+  const ultimo = [sumarMeses(primero, 11), sumarMeses(periodoDe(calc.hoy), 11)].sort().at(-1);
+  const lista = [];
+  for (let p = primero; p <= ultimo; p = sumarMeses(p, 1)) {
+    const m = mesDeInquilino(inq, c, p);
+    if (!m) break;
+    lista.push(m);
+  }
+  return lista;
+}
+
+function botonesMeses(lista, elegidos, verTodos) {
+  if (!lista.length) return '<p class="meta">No hay meses por pagar.</p>';
+  // Al inicio se muestran unos 6 meses; el resto con «Más meses».
+  const limite = [sumarMeses(lista[0].periodo, 5), sumarMeses(periodoDe(calc.hoy), 2), ...elegidos].sort().at(-1);
+  const visibles = verTodos ? lista : lista.filter((m) => m.periodo <= limite);
+  const mas = visibles.length < lista.length
+    ? '<button type="button" class="mes-op mes-mas" data-mas>Más meses…</button>' : '';
+  return visibles.map((m) => {
+    const pagado = m.saldo <= 0;
+    let estado;
+    let clase = '';
+    if (pagado) {
+      estado = 'Pagado';
+      clase = 'pagado';
+    } else if (m.vencido) {
+      estado = m.pagado > 0 ? `Debe ${dinero(m.saldo)}` : `Vencido ${dinero(m.saldo)}`;
+      clase = 'vencido';
+    } else if (m.pagado > 0) {
+      estado = `Falta ${dinero(m.saldo)}`;
+      clase = 'parcial';
+    } else {
+      estado = dinero(m.saldo);
+    }
+    const elegido = elegidos.includes(m.periodo);
+    return `<button type="button" class="mes-op ${clase} ${elegido ? 'elegido' : ''}" data-periodo="${m.periodo}"
+      aria-pressed="${elegido}" ${pagado ? 'disabled' : ''}>
+      <strong>${nombrePeriodo(m.periodo, true)}</strong><span>${esc(estado)}</span>
+    </button>`;
+  }).join('') + mas;
+}
+
+function modalPago({ inquilinoId = '', pagoId = null, periodo = '' } = {}) {
   const pago = pagoId ? datos.pagos.find((p) => p.id === pagoId) : null;
   if (pagoId && !pago) return toast('Ese pago ya no existe.', 'error');
   if (!datos.inquilinos.length) {
@@ -586,9 +640,13 @@ function modalPago({ inquilinoId = '', pagoId = null } = {}) {
   const form = abrirModal(pago ? 'Editar pago' : 'Registrar pago', `
     <label class="campo"><span>Inquilino</span>
       <select name="inquilinoId" required>${opcionesInquilinos(seleccionado)}</select></label>
+    <div class="campo">
+      <span>${pago ? 'Mes que paga' : 'Mes que paga · toca uno o varios'}</span>
+      <div class="meses-pago" id="meses-pago"></div>
+    </div>
     <div class="campos-2">
-      <label class="campo"><span>Monto (${esc(MONEDA)})</span>
-        <input name="monto" type="number" inputmode="decimal" min="0.01" step="0.01" required value="${pago ? pago.monto : sugerirMonto(seleccionado)}"></label>
+      <label class="campo"><span id="etq-monto">Monto (${esc(MONEDA)})</span>
+        <input name="monto" type="number" inputmode="decimal" min="0.01" step="0.01" required></label>
       <label class="campo"><span>Fecha en que pagó</span>
         <input name="fecha" type="date" required value="${pago?.fecha || calc.hoy}"></label>
     </div>
@@ -600,56 +658,135 @@ function modalPago({ inquilinoId = '', pagoId = null } = {}) {
     ${pago ? `<p class="meta">Anotado por ${esc(pago.creadoPor?.nombre || '—')} el ${esc(fechaHora(pago.creadoEn))}${pago.editadoPor ? ` · editado por ${esc(pago.editadoPor.nombre)} el ${esc(fechaHora(pago.editadoEn))}` : ''}</p>` : ''}`, {
     textoGuardar: pago ? 'Guardar cambios' : 'Registrar pago',
     alGuardar(d) {
-      const monto = redondear(Number(d.monto));
-      if (!(monto > 0)) return 'El monto debe ser mayor a cero.';
-      store.guardar('pagos', pagoId, {
-        inquilinoId: d.inquilinoId, monto, fecha: d.fecha, metodo: d.metodo, nota: d.nota.trim(),
-      });
+      if (!elegidos.length) return 'Elige el mes que está pagando.';
+      const base = { inquilinoId: d.inquilinoId, fecha: d.fecha, metodo: d.metodo, nota: d.nota.trim() };
       const nombre = calc.inquilinos.get(d.inquilinoId)?.nombre || '';
-      toast(pago ? 'Pago actualizado' : `Pago de ${dinero(monto)} de ${nombre} registrado`);
+      if (elegidos.length === 1) {
+        const m = disponibles.get(elegidos[0]);
+        const monto = redondear(Number(d.monto));
+        if (!(monto > 0)) return 'El monto debe ser mayor a cero.';
+        if (monto > m.saldo + 0.005) {
+          return `El monto es mayor a lo que falta de ${nombrePeriodo(m.periodo)} (${dinero(m.saldo)}). Para adelantar, elige también los meses siguientes.`;
+        }
+        store.guardar('pagos', pagoId, { ...base, periodo: m.periodo, monto });
+        toast(pago ? 'Pago actualizado' : `${nombre}: ${nombrePeriodo(m.periodo)} — ${dinero(monto)} registrado`);
+        return;
+      }
+      // Varios meses: un pago por cada mes, por lo que falta de cada uno.
+      for (const p of [...elegidos].sort()) {
+        store.guardar('pagos', null, { ...base, periodo: p, monto: disponibles.get(p).saldo });
+      }
+      toast(`${nombre}: ${elegidos.length} meses — ${dinero(suma(elegidos, (p) => disponibles.get(p).saldo))} registrado`);
     },
     alEliminar: pago && (() => {
-      if (!confirm(`¿Eliminar el pago de ${dinero(pago.monto)} del ${fechaLarga(pago.fecha)}?`)) return false;
+      const mes = pago.periodo ? ` de ${nombrePeriodo(pago.periodo)}` : '';
+      if (!confirm(`¿Eliminar el pago${mes} de ${dinero(pago.monto)} (${fechaLarga(pago.fecha)})?`)) return false;
       store.eliminar('pagos', pagoId);
       toast('Pago eliminado');
     }),
   });
 
-  const actualizar = () => mostrarPrevia(form, pago);
-  form.addEventListener('input', actualizar);
-  form.elements.inquilinoId.addEventListener('change', (e) => {
-    if (!pago) form.elements.monto.value = sugerirMonto(e.target.value);
-    actualizar();
+  const caja = $('#meses-pago', form);
+  const { monto } = form.elements;
+  let disponibles = new Map();
+  let elegidos = [];
+  let verTodos = false;
+
+  const actualizar = (reiniciarMonto) => {
+    caja.innerHTML = disponibles.size ? botonesMeses([...disponibles.values()], elegidos, verTodos)
+      : '<p class="meta">Primero elige el inquilino.</p>';
+    const lista = elegidos.map((p) => disponibles.get(p));
+    if (lista.length > 1) {
+      monto.readOnly = true;
+      monto.value = suma(lista, (m) => m.saldo);
+      $('#etq-monto', form).textContent = `Total de ${lista.length} meses (${MONEDA})`;
+    } else {
+      monto.readOnly = false;
+      if (reiniciarMonto) monto.value = lista[0]?.saldo ?? '';
+      $('#etq-monto', form).textContent = `Monto (${MONEDA})`;
+    }
+    mostrarPrevia(form, pago, lista);
+  };
+
+  const cargarInquilino = (primeraVez) => {
+    const inq = calc.inquilinos.get(form.elements.inquilinoId.value);
+    if (!inq) {
+      disponibles = new Map();
+      elegidos = [];
+      actualizar(true);
+      return;
+    }
+    const c = cuentaSinPago(inq, pagoId);
+    const inicial = primeraVez ? (pago?.periodo || periodo) : '';
+    disponibles = new Map(mesesParaPagar(inq, c, inicial).map((m) => [m.periodo, m]));
+    const porDefecto = [...disponibles.values()].find((m) => m.saldo > 0)?.periodo;
+    elegidos = [disponibles.get(inicial)?.saldo > 0 ? inicial : porDefecto].filter(Boolean);
+    actualizar(true);
+    if (primeraVez && pago) monto.value = pago.monto;
+    if (primeraVez) mostrarPrevia(form, pago, elegidos.map((p) => disponibles.get(p)));
+  };
+
+  caja.addEventListener('click', (e) => {
+    const boton = e.target.closest('.mes-op');
+    if (!boton || boton.disabled) return;
+    if (boton.hasAttribute('data-mas')) {
+      verTodos = true;
+      actualizar(false);
+      return;
+    }
+    const p = boton.dataset.periodo;
+    if (pago) elegidos = [p];
+    else if (elegidos.includes(p)) elegidos = elegidos.filter((x) => x !== p);
+    else elegidos = [...elegidos, p].sort();
+    actualizar(true);
   });
-  actualizar();
+  form.elements.inquilinoId.addEventListener('change', () => cargarInquilino(false));
+  form.addEventListener('input', (e) => {
+    if (e.target.name === 'monto' || e.target.name === 'fecha') {
+      mostrarPrevia(form, pago, elegidos.map((p) => disponibles.get(p)));
+    }
+  });
+  cargarInquilino(true);
 }
 
-// Muestra a qué meses se aplicará el pago antes de guardarlo.
-function mostrarPrevia(form, pagoEditado) {
+// Resume lo que quedará registrado antes de guardar.
+function mostrarPrevia(form, pagoEditado, lista) {
   const caja = $('#previa', form);
   const inq = calc.inquilinos.get(form.elements.inquilinoId.value);
-  const monto = redondear(Number(form.elements.monto.value));
   const fecha = form.elements.fecha.value;
-  if (!inq || !(monto > 0) || !fecha) {
+  const monto = redondear(Number(form.elements.monto.value));
+  if (!inq || !lista.length || !fecha || !(monto > 0)) {
     caja.innerHTML = '';
     return;
   }
+  const nuevos = lista.length === 1
+    ? [{ id: '__nuevo0', periodo: lista[0].periodo, monto, fecha }]
+    : lista.map((m, i) => ({ id: `__nuevo${i}`, periodo: m.periodo, monto: m.saldo, fecha }));
   const otros = (calc.pagosPor.get(inq.id) || []).filter((p) => p.id !== pagoEditado?.id);
-  const nuevo = { id: '__nuevo', monto, fecha, creadoEn: pagoEditado?.creadoEn || '9999' };
-  const c = estadoCuenta(inq, [...otros, nuevo], calc.hoy);
-  const usos = c.meses.flatMap((m) => m.aplicaciones.filter((a) => a.pagoId === '__nuevo').map((a) => ({ m, a })));
-  const sobra = redondear(monto - suma(usos, (u) => u.a.monto));
+  const c = estadoCuenta(inq, [...otros, ...nuevos], calc.hoy);
 
-  const items = usos.map(({ m, a }) => `<li><strong>${nombrePeriodo(m.periodo)}</strong>: ${esc(dinero(a.monto))} — ${
-    m.saldo > 0 ? `<span class="texto-ambar">quedará faltando ${esc(dinero(m.saldo))}</span>` : '<span class="texto-verde">queda pagado</span>'}</li>`);
-  if (sobra > 0) items.push(`<li><strong>Saldo a favor</strong>: ${esc(dinero(sobra))}</li>`);
+  if (lista.length === 1 && monto > lista[0].saldo + 0.005) {
+    caja.innerHTML = `<span class="texto-rojo">El monto es mayor a lo que falta de ${nombrePeriodo(lista[0].periodo)}
+      (${esc(dinero(lista[0].saldo))}). Para adelantar, elige también los meses siguientes.</span>`;
+    return;
+  }
+  const items = nuevos.map((n) => {
+    const m = c.meses.find((x) => x.periodo === n.periodo);
+    return `<li><strong>${nombrePeriodo(n.periodo)}</strong>: ${esc(dinero(n.monto))} — ${
+      m && m.saldo > 0 ? `<span class="texto-ambar">quedará faltando ${esc(dinero(m.saldo))}</span>` : '<span class="texto-verde">queda pagado</span>'}</li>`;
+  });
 
   let despues;
-  if (c.deuda > 0) despues = `<span class="texto-rojo">Seguirá debiendo ${esc(dinero(c.deuda))}</span>`;
-  else if (c.pagadoHasta) despues = `Quedará <strong>pagado hasta ${nombrePeriodo(c.pagadoHasta)}</strong>`;
-  else despues = 'Sin deuda';
+  if (c.deuda > 0) {
+    const pendientes = c.meses.filter((m) => m.vencido).map((m) => nombrePeriodo(m.periodo, true));
+    despues = `<span class="texto-rojo">Seguirá debiendo ${esc(dinero(c.deuda))} (${esc(pendientes.join(', '))})</span>`;
+  } else if (c.pagadoHasta) {
+    despues = `Quedará <strong>pagado hasta ${nombrePeriodo(c.pagadoHasta)}</strong>`;
+  } else {
+    despues = 'Sin deuda';
+  }
 
-  caja.innerHTML = `<div class="previa-titulo">Este pago cubrirá:</div>
+  caja.innerHTML = `<div class="previa-titulo">Se registrará:</div>
     <ul>${items.join('')}</ul>
     <div class="previa-despues">${despues}</div>`;
 }
@@ -899,9 +1036,9 @@ function errorLogin(mensaje) {
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-accion]');
   if (!el) return;
-  const { accion, id, inquilino, lugar, valor } = el.dataset;
+  const { accion, id, inquilino, lugar, valor, periodo } = el.dataset;
   switch (accion) {
-    case 'pago': modalPago({ inquilinoId: inquilino }); break;
+    case 'pago': modalPago({ inquilinoId: inquilino, periodo }); break;
     case 'editar-pago': modalPago({ pagoId: id }); break;
     case 'nuevo-inquilino': modalInquilino(); break;
     case 'editar-inquilino': modalInquilino(id); break;

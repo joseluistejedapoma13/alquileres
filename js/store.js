@@ -7,7 +7,9 @@ import { firebaseConfig } from './config.js';
 
 const SDK = 'https://www.gstatic.com/firebasejs/12.19.0';
 export const COLECCIONES = ['lugares', 'unidades', 'inquilinos', 'pagos'];
-export const modoDemo = !firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith('PEGA');
+// Con "?demo" en la dirección se abre la demo aunque Firebase esté configurado.
+export const modoDemo = !firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith('PEGA')
+  || new URLSearchParams(location.search).has('demo');
 
 let usuario = null;
 let backend = null;
@@ -84,7 +86,7 @@ async function crearFirebase({ alUsuario, alDatos, alError }) {
 }
 
 function crearDemo({ alUsuario, alDatos }) {
-  const CLAVE = 'alquileres-demo-v1';
+  const CLAVE = 'alquileres-demo-v2';
   const SESION = 'alquileres-demo-sesion';
   let datos = null;
   try { datos = JSON.parse(localStorage.getItem(CLAVE)); } catch { /* sin almacenamiento */ }
@@ -143,8 +145,8 @@ function datosEjemplo() {
   const periodo = (mesesAtras) => fecha(mesesAtras, 1).slice(0, 7);
   const firma = { email: 'demo@ejemplo.com', nombre: 'Demo' };
   let n = 0;
-  const pago = (inquilinoId, monto, f, metodo = 'efectivo', nota = '') => ({
-    id: `p${++n}`, inquilinoId, monto, fecha: f, metodo, nota,
+  const pago = (inquilinoId, mesesAtras, monto, f, metodo = 'efectivo', nota = '') => ({
+    id: `p${++n}`, inquilinoId, periodo: periodo(mesesAtras), monto, fecha: f, metodo, nota,
     creadoEn: `${f}T12:00:00.000Z`, creadoPor: firma,
   });
 
@@ -174,17 +176,17 @@ function datosEjemplo() {
         fechaInicio: fecha(10, 1), fechaFin: fecha(4, 28), diaPago: 1, montos: [{ desde: periodo(10), monto: 380 }], garantia: null, notas: '' },
     ],
     pagos: [
-      ...[5, 4, 3, 2, 1, 0].map((m) => pago('i1', 450, fecha(m, 3), m % 2 ? 'yape' : 'efectivo')),
-      pago('i2', 400, fecha(4, 9)),
-      pago('i2', 400, fecha(3, 12), 'yape'),
-      ...[6, 5, 4, 3].map((m) => pago('i3', 1100, fecha(m, 1), 'transferencia')),
-      ...[2, 1].map((m) => pago('i3', 1200, fecha(m, 1), 'transferencia')),
-      pago('i3', 3600, fecha(0, 1), 'transferencia', 'Adelantó 3 meses'),
-      pago('i4', 900, fecha(3, 14)),
-      pago('i4', 900, fecha(2, 20), 'efectivo', 'Pagó tarde'),
-      pago('i4', 900, fecha(1, 15), 'plin'),
-      pago('i4', 400, fecha(0, 10), 'efectivo', 'A cuenta'),
-      ...[10, 9, 8, 7, 6, 5, 4].map((m) => pago('i5', 380, fecha(m, 2))),
+      ...[5, 4, 3, 2, 1, 0].map((m) => pago('i1', m, 450, fecha(m, 3), m % 2 ? 'yape' : 'efectivo')),
+      pago('i2', 4, 400, fecha(4, 9)),
+      pago('i2', 3, 400, fecha(3, 12), 'yape'),
+      ...[6, 5, 4, 3].map((m) => pago('i3', m, 1100, fecha(m, 1), 'transferencia')),
+      ...[2, 1].map((m) => pago('i3', m, 1200, fecha(m, 1), 'transferencia')),
+      ...[0, -1, -2].map((m) => pago('i3', m, 1200, fecha(0, 1), 'transferencia', 'Adelantó 3 meses')),
+      pago('i4', 3, 900, fecha(3, 14)),
+      pago('i4', 2, 900, fecha(2, 20), 'efectivo', 'Pagó tarde'),
+      pago('i4', 1, 900, fecha(1, 15), 'plin'),
+      pago('i4', 0, 400, fecha(0, 10), 'efectivo', 'A cuenta'),
+      ...[10, 9, 8, 7, 6, 5, 4].map((m) => pago('i5', m, 380, fecha(m, 2))),
     ],
   };
 }

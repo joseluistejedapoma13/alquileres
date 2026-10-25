@@ -12,6 +12,9 @@ varias personas a la vez (los cambios se ven al instante en todos los equipos).
 
 Proyecto de Firebase: `mis-alquileres-e99e9` (plan gratuito Spark, base de datos en Santiago de Chile).
 
+Para probar sin tocar los datos reales, abre https://joseluistejedapoma13.github.io/alquileres/?demo
+(datos de ejemplo que se guardan solo en ese navegador).
+
 ### Dar acceso a otra persona (o quitárselo)
 
 1. Entra a https://console.firebase.google.com → proyecto **mis-alquileres** → **Firestore Database** → pestaña **Reglas**.
@@ -35,13 +38,17 @@ Proyecto de Firebase: `mis-alquileres-e99e9` (plan gratuito Spark, base de datos
 | **Pagos** | Todos los pagos recibidos en un mes y quién los anotó. Toca un pago para corregirlo o borrarlo. |
 | **Lugares** | Tus casas, edificios o galerías y sus cuartos/locales (libres u ocupados). |
 
-### Cómo calcula las deudas y los adelantos
+### Cómo se registran los pagos (mes a mes)
 
 - Cada inquilino genera un cobro por mes desde su **fecha de ingreso**, con vencimiento en su **día de pago**.
-- Cuando registras un pago, se aplica **al mes más antiguo pendiente**. Si sobra dinero, pasa al mes siguiente.
-  - Si alguien paga 3 meses juntos, aparece como **«Pagado hasta …»** (adelantado).
-  - Si paga una parte, queda como **abono** y se ve cuánto falta.
-- Antes de guardar un pago, el formulario muestra **qué meses cubrirá**.
+- Al registrar un pago **eliges el mes que está pagando**. Aparece ya marcado el mes pendiente más antiguo
+  y el monto que falta de ese mes.
+  - **Pago de una parte**: deja un solo mes marcado y cambia el monto. Queda como **abono** y se ve cuánto falta.
+  - **Adelanto o varios meses juntos**: toca varios meses. Se guarda un pago por cada mes y el total se calcula solo.
+  - No se puede poner más dinero del que falta en un mes: para adelantar, marca también los meses siguientes.
+- En **Por mes** y en la ficha de cada inquilino, cada mes pendiente tiene un botón **«Pagar»** que abre el
+  formulario con ese mes ya elegido.
+- Si alguien adelantó meses, aparece como **«Pagado hasta …»**.
 - **Deuda vencida** = meses cuyo día de pago ya pasó y no se completaron.
 - **Descuento / ajuste**: úsalo para perdonar un monto (por ejemplo, si alguien sale a mitad de mes).
   Cuenta como pagado, pero no suma en «dinero recibido».
