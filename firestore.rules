@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// Reglas de seguridad de la base de datos (Firebase > Firestore Database > Reglas).
+// Solo los correos de esta lista pueden ver y registrar datos.
+// Para dar acceso a alguien más, agrega su correo de Google y pulsa «Publicar».
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function esFamilia() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'tu.correo@gmail.com',
+          'correo.de.tu.hermano@gmail.com',
+          'correo.de.tu.mama@gmail.com'
+        ];
+    }
+
+    match /{coleccion}/{id} {
+      allow read, delete: if esFamilia()
+        && coleccion in ['lugares', 'unidades', 'inquilinos', 'pagos'];
+
+      allow create, update: if esFamilia()
+        && coleccion in ['lugares', 'unidades', 'inquilinos', 'pagos']
+        && (coleccion != 'pagos'
+            || (request.resource.data.monto is number && request.resource.data.monto > 0));
+    }
+  }
+}
