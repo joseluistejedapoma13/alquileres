@@ -10,8 +10,18 @@ varias personas a la vez (los cambios se ven al instante en todos los equipos).
 - Los datos se guardan en **Firebase** (base de datos gratuita de Google).
 - Cada persona entra con **su cuenta de Google**. Solo los correos autorizados pueden ver o registrar.
 
-Mientras Firebase no esté configurado, la página funciona en **modo demo**: muestra
-datos de ejemplo que se guardan solo en el navegador de quien la abre.
+Proyecto de Firebase: `mis-alquileres-e99e9` (plan gratuito Spark, base de datos en Santiago de Chile).
+
+### Dar acceso a otra persona (o quitárselo)
+
+1. Entra a https://console.firebase.google.com → proyecto **mis-alquileres** → **Firestore Database** → pestaña **Reglas**.
+2. En la lista de correos, agrega el correo de Google de la persona entre comillas y separado por coma:
+   ```
+   'tu.correo@gmail.com',
+   'correo.de.tu.hermano@gmail.com',
+   'correo.de.tu.mama@gmail.com'
+   ```
+3. Pulsa **Publicar**. En un minuto ya puede entrar con «Entrar con Google».
 
 ---
 
@@ -46,7 +56,7 @@ Queda como una aplicación más.
 
 ---
 
-## Configuración inicial (una sola vez, ~10 minutos)
+## Configuración inicial (ya está hecha; queda como referencia)
 
 ### 1. Crear el proyecto de Firebase
 
@@ -69,7 +79,7 @@ Queda como una aplicación más.
 ### 4. Crear la base de datos
 
 1. Menú izquierdo → **Compilación / Build → Firestore Database** → **Crear base de datos**.
-2. Edición **Standard**. Ubicación: `southamerica-east1 (São Paulo)` (la más cercana a Perú).
+2. Edición **Standard**. Ubicación: `southamerica-west1 (Santiago)` (la más cercana a Perú).
 3. Elige **Iniciar en modo de producción** → **Crear**.
 4. Pestaña **Reglas**: borra todo y pega el contenido del archivo [`firestore.rules`](firestore.rules).
    **Cambia los 3 correos** por el tuyo, el de tu hermano y el de tu mamá (cuentas de Google). Pulsa **Publicar**.
@@ -86,8 +96,6 @@ En 1–2 minutos la página se actualiza sola.
 
 Envía el enlace https://joseluistejedapoma13.github.io/alquileres/ a tu hermano y a tu mamá.
 Cada uno entra con **«Entrar con Google»** usando el correo que pusiste en las reglas.
-
-**Para dar acceso a otra persona** (o quitárselo): Firebase → Firestore Database → Reglas → edita la lista de correos → Publicar.
 
 ---
 
