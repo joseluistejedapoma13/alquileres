@@ -56,6 +56,18 @@ Para probar sin tocar los datos reales, abre https://joseluistejedapoma13.github
 - **Terminar alquiler**: cuando alguien se muda. Se cobra hasta el mes de salida y su historial se conserva.
 - La **garantía** se guarda aparte; no la registres como pago.
 
+### Avisos al celular: quién paga hoy
+
+Cada mañana a las **8:07 a. m.** (hora de Perú) llega un aviso a la app **ntfy** del celular
+con los inquilinos a los que les toca pagar ese día y cuánto falta. Si alguien ya pagó ese mes
+por adelantado no se le recuerda, y si alguien debe meses anteriores se menciona al final.
+Los días en que no le toca pagar a nadie no llega nada.
+
+- Lo ejecuta GitHub (repositorio privado `alquileres-avisos`), así que funciona con la laptop apagada.
+- Para recibirlos: instala **ntfy** (Play Store / App Store), pulsa **+** y suscríbete al canal
+  que está guardado en el repositorio privado (el nombre del canal es secreto: compártelo solo con la familia).
+- Para mandar un aviso de prueba: repositorio `alquileres-avisos` → **Actions** → **Avisos de pago** → **Run workflow**.
+
 ### Instalarla en el celular
 
 Abre la página en el celular → menú del navegador → **«Agregar a la pantalla de inicio»**.
