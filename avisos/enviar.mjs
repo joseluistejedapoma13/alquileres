@@ -25,6 +25,10 @@ const { MONEDA } = await cargar('../js/config.js');
 const hoy = process.env.HOY
   || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
 
+for (const secreto of ['FIREBASE_SA', 'NTFY_TOPIC']) {
+  if (!process.env[secreto]) throw new Error(`Falta el secreto ${secreto} en el repositorio de avisos.`);
+}
+
 initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SA)) });
 const db = getFirestore();
 const leer = async (coleccion) => (await db.collection(coleccion).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
