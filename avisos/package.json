@@ -1,0 +1,9 @@
+{
+  "name": "alquileres-avisos",
+  "private": true,
+  "type": "module",
+  "description": "Avisos diarios de quién paga hoy (se ejecuta en GitHub Actions).",
+  "dependencies": {
+    "firebase-admin": "14.5.0"
+  }
+}
