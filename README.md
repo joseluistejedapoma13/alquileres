@@ -64,6 +64,9 @@ por adelantado no se le recuerda, y si alguien debe meses anteriores se menciona
 Los días en que no le toca pagar a nadie no llega nada.
 
 - Lo ejecuta GitHub (repositorio privado `alquileres-avisos`), así que funciona con la laptop apagada.
+- GitHub lee los datos **sin ninguna clave**: se identifica ante Google (federación de identidades `github`)
+  como la cuenta `avisos-alquileres`, que solo tiene permiso de **lectura**. Solo el repositorio
+  `alquileres-avisos` puede usarla.
 - Para recibirlos: instala **ntfy** (Play Store / App Store), pulsa **+** y suscríbete al canal
   que está guardado en el repositorio privado (el nombre del canal es secreto: compártelo solo con la familia).
 - Para mandar un aviso de prueba: repositorio `alquileres-avisos` → **Actions** → **Avisos de pago** → **Run workflow**.

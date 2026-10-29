@@ -2,13 +2,16 @@
 // Lo ejecuta GitHub Actions cada mañana desde el repositorio privado
 // "alquileres-avisos"; no necesita que la laptop esté prendida.
 //
+// Acceso a los datos: GitHub se identifica ante Google sin clave (federación de
+// identidades) como la cuenta de servicio de solo lectura "avisos-alquileres".
+//
 // Variables de entorno:
-//   FIREBASE_SA  clave de la cuenta de servicio de Firebase (JSON)
 //   NTFY_TOPIC   nombre del canal de ntfy al que están suscritos los celulares
+//   FIREBASE_SA  (opcional) clave JSON de una cuenta de servicio, en lugar de la federación
 //   PRUEBA=1     envía un aviso de prueba aunque hoy no pague nadie
 //   HOY          fecha a usar (YYYY-MM-DD), solo para probar
 import { readFile } from 'node:fs/promises';
-import { initializeApp, cert } from 'firebase-admin/app';
+import { initializeApp, cert, applicationDefault } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { armarAviso, armarPrueba } from './aviso.mjs';
 
@@ -20,16 +23,17 @@ async function cargar(ruta) {
   return import(`data:text/javascript;base64,${Buffer.from(fuente).toString('base64')}`);
 }
 const calc = await cargar('../js/calc.js');
-const { MONEDA } = await cargar('../js/config.js');
+const { MONEDA, firebaseConfig } = await cargar('../js/config.js');
 
 const hoy = process.env.HOY
   || new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
 
-for (const secreto of ['FIREBASE_SA', 'NTFY_TOPIC']) {
-  if (!process.env[secreto]) throw new Error(`Falta el secreto ${secreto} en el repositorio de avisos.`);
-}
+if (!process.env.NTFY_TOPIC) throw new Error('Falta el secreto NTFY_TOPIC en el repositorio de avisos.');
 
-initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SA)) });
+initializeApp({
+  credential: process.env.FIREBASE_SA ? cert(JSON.parse(process.env.FIREBASE_SA)) : applicationDefault(),
+  projectId: firebaseConfig.projectId,
+});
 const db = getFirestore();
 const leer = async (coleccion) => (await db.collection(coleccion).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
 const [lugares, unidades, inquilinos, pagos] = await Promise.all(
