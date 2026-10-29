@@ -56,12 +56,17 @@ Para probar sin tocar los datos reales, abre https://joseluistejedapoma13.github
 - **Terminar alquiler**: cuando alguien se muda. Se cobra hasta el mes de salida y su historial se conserva.
 - La **garantía** se guarda aparte; no la registres como pago.
 
-### Avisos al celular: quién paga hoy
+### Avisos al celular: quién paga hoy y quién está atrasado
 
-Cada mañana a las **8:07 a. m.** (hora de Perú) llega un aviso a la app **ntfy** del celular
-con los inquilinos a los que les toca pagar ese día y cuánto falta. Si alguien ya pagó ese mes
-por adelantado no se le recuerda, y si alguien debe meses anteriores se menciona al final.
-Los días en que no le toca pagar a nadie no llega nada.
+Cada mañana a las **8:07 a. m.** (hora de Perú) llega un aviso a la app **ntfy** del celular con:
+
+- **Hoy le toca pagar**: los inquilinos cuyo día de pago es hoy y cuánto falta. Si alguien ya pagó
+  ese mes por adelantado no se le recuerda.
+- **Pagos atrasados**: cada inquilino con meses vencidos sin pagar, cuánto debe en total y el detalle
+  de cada mes (cuánto falta, qué día venció y hace cuántos días). Se repite cada mañana hasta que
+  se registre el pago. Al final, el total atrasado.
+
+Los días en que no le toca pagar a nadie y nadie está atrasado no llega nada.
 
 - Lo ejecuta GitHub (repositorio privado `alquileres-avisos`), así que funciona con la laptop apagada.
 - GitHub lee los datos **sin ninguna clave**: se identifica ante Google (federación de identidades `github`)

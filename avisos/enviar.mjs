@@ -1,4 +1,4 @@
-// Envía al celular (app ntfy) el aviso de quién paga hoy.
+// Envía al celular (app ntfy) el aviso de quién paga hoy y quién tiene pagos atrasados.
 // Lo ejecuta GitHub Actions cada mañana desde el repositorio privado
 // "alquileres-avisos"; no necesita que la laptop esté prendida.
 //
@@ -8,7 +8,7 @@
 // Variables de entorno:
 //   NTFY_TOPIC   nombre del canal de ntfy al que están suscritos los celulares
 //   FIREBASE_SA  (opcional) clave JSON de una cuenta de servicio, en lugar de la federación
-//   PRUEBA=1     envía un aviso de prueba aunque hoy no pague nadie
+//   PRUEBA=1     envía un aviso de prueba aunque hoy no haya nada que avisar
 //   HOY          fecha a usar (YYYY-MM-DD), solo para probar
 import { readFile } from 'node:fs/promises';
 import { initializeApp, cert, applicationDefault } from 'firebase-admin/app';
@@ -44,10 +44,10 @@ const aviso = armarAviso({ lugares, unidades, inquilinos, pagos }, hoy, calc, MO
 const enviar = process.env.PRUEBA ? armarPrueba(aviso, calc, MONEDA) : aviso;
 
 // En el registro no se escriben nombres ni montos.
-console.log(`${hoy}: ${aviso.pagan.length} pagan hoy, ${aviso.yaPagaron.length} ya pagaron, ${aviso.deben.length} deben meses anteriores.`);
+console.log(`${hoy}: ${aviso.pagan.length} pagan hoy, ${aviso.yaPagaron.length} ya pagaron, ${aviso.atrasados.length} con pagos atrasados.`);
 
 if (!enviar.titulo) {
-  console.log('Hoy no le toca pagar a nadie: no se envía aviso.');
+  console.log('Hoy no le toca pagar a nadie y nadie está atrasado: no se envía aviso.');
 } else {
   const respuesta = await fetch('https://ntfy.sh/', {
     method: 'POST',
@@ -56,7 +56,7 @@ if (!enviar.titulo) {
       topic: process.env.NTFY_TOPIC,
       title: enviar.titulo,
       message: enviar.mensaje,
-      tags: ['moneybag'],
+      tags: aviso.atrasados.length ? ['moneybag', 'warning'] : ['moneybag'],
       priority: 4,
       click: PAGINA,
     }),
